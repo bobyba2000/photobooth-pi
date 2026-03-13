@@ -1,0 +1,5 @@
+uploads/
+old/
+cors.json
+.env
+serviceAccountKey.json

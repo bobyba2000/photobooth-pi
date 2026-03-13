@@ -1,0 +1,7 @@
+flask
+pyngrok
+flask_cors
+Pillow
+requests
+firebase-admin
+dotenv
