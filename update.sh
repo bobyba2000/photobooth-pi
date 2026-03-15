@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /home/pi/Desktop || exit
+cd /home/pi/photobooth-pi || exit
 
 # Pull latest code
 if /usr/bin/git pull origin main | grep -q "Already up to date."; then
