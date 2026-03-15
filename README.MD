@@ -21,7 +21,7 @@ server.service
 Create the update script:
 
 ```bash
-nano /home/pi/update.sh
+nano /home/pi/photobooth-pi/update.sh
 ```
 
 Paste the following:
@@ -29,7 +29,7 @@ Paste the following:
 ```bash
 #!/bin/bash
 
-cd /home/pi/Desktop || exit
+cd /home/pi/photobooth-pi || exit
 
 # Pull latest code
 if /usr/bin/git pull origin main | grep -q "Already up to date."; then
@@ -49,7 +49,7 @@ Save and exit.
 Run:
 
 ```bash
-chmod +x /home/pi/update.sh
+chmod +x /home/pi/photobooth-pi/update.sh
 ```
 
 ---
@@ -65,7 +65,7 @@ crontab -e
 Add this line:
 
 ```bash
-*/5 * * * * /home/pi/update.sh
+*/5 * * * * /home/pi/photobooth-pi/update.sh
 ```
 
 Meaning:
