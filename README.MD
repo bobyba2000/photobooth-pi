@@ -68,7 +68,7 @@ crontab -e
 Add this line:
 
 ```bash
-*/5 * * * * /home/pi/photobooth-pi/update.sh
+*/5 * * * * /home/pi/photobooth-pi/update.sh >> /home/pi/update.log 2>&1
 ```
 
 Meaning:
