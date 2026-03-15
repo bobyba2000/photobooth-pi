@@ -1,3 +1,6 @@
+Download setup:
+https://drive.google.com/drive/folders/129H4RJmpxrxZkUlFvJhOewMgt4k5RSf7?usp=sharing
+
 # Auto Update Setup (GitHub → Raspberry Pi)
 
 This project can automatically pull updates from GitHub every **5 minutes** and restart the service **only when new code is available**.
