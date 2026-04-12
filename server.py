@@ -10,11 +10,13 @@ import time
 import re
 import requests
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 import threading
 import time
 import subprocess
 import socket
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse, unquote
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -282,6 +284,50 @@ def check_connection():
     }), 200
 
 
+def delete_storage_file_by_url(image_url):
+    """Delete a Firebase Storage object using its gs:// or download URL."""
+    if not image_url:
+        return False, "empty_url"
+
+    try:
+        if image_url.startswith("gs://"):
+            parsed = urlparse(image_url)
+            bucket_name = parsed.netloc
+            blob_path = parsed.path.lstrip("/")
+        else:
+            parsed = urlparse(image_url)
+            path = parsed.path
+
+            # Expected download URL format:
+            # /v0/b/{bucket}/o/{encoded_object_path}
+            marker = "/o/"
+            if not path.startswith("/v0/b/") or marker not in path:
+                return False, "unsupported_url_format"
+
+            prefix, encoded_blob_path = path.split(marker, 1)
+            prefix_parts = prefix.split("/")
+            if len(prefix_parts) < 4:
+                return False, "unsupported_url_format"
+
+            bucket_name = prefix_parts[3]
+            blob_path = unquote(encoded_blob_path)
+
+        if not bucket_name or not blob_path:
+            return False, "invalid_bucket_or_path"
+
+        bucket = storage.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+
+        if not blob.exists():
+            return True, "not_found"
+
+        blob.delete()
+        return True, "deleted"
+
+    except Exception as e:
+        return False, str(e)
+
+
 def process_tasks():
     while True:
         try:
@@ -370,7 +416,10 @@ def process_tasks():
 
                         if result.returncode == 0:
                             print(f"? Submitted print job for task {task_id}")
-                            fs.collection("Task").document(task_id).update({"status": "Printed"})
+                            fs.collection("Task").document(task_id).update({
+                                "status": "Printed",
+                                "print_time": firestore.SERVER_TIMESTAMP,
+                            })
                             os.remove(filepath)
                             print(f"? Removed image {filename} for task {task_id}")
                         else:
@@ -378,6 +427,50 @@ def process_tasks():
 
                     except Exception as e:
                         print(f"? Error printing task {task_id}: {e}")
+
+            # Cleanup: after 1 day from print_time, remove image_url and mark as deleted
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=1)
+            printed_expired_tasks = (
+                fs.collection("Task")
+                .where("device_id", "==", device_id)
+                .where("status", "==", "Printed")
+                .where("print_time", "<=", cutoff_time)
+                .get()
+            )
+
+            printed_without_time_tasks = (
+                fs.collection("Task")
+                .where("device_id", "==", device_id)
+                .where("status", "==", "Printed")
+                .where("print_time", "==", None)
+                .get()
+            )
+
+            cleanup_tasks = {task.id: task for task in printed_expired_tasks}
+            cleanup_tasks.update({task.id: task for task in printed_without_time_tasks})
+
+            for task in cleanup_tasks.values():
+                task_id = task.id
+                task_data = task.to_dict()
+                image_url = task_data.get("image_url")
+
+                try:
+                    deleted_ok, delete_status = delete_storage_file_by_url(image_url)
+                    if not deleted_ok:
+                        print(f"? Failed storage delete for task {task_id}: {delete_status}")
+                        # Keep task as Printed to retry deletion on next cycle.
+                        continue
+
+                    fs.collection("Task").document(task_id).update({
+                        "image_url": firestore.DELETE_FIELD,
+                        "status": "deleted",
+                    })
+                    print(
+                        f"? Cleared image_url and marked task {task_id} as deleted "
+                        f"(storage: {delete_status})"
+                    )
+                except Exception as e:
+                    print(f"? Failed cleanup for task {task_id}: {e}")
             
         except Exception as e:
             print(f"? An error occurred in the task processing loop: {e}")
