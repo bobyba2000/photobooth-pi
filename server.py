@@ -422,6 +422,8 @@ def process_tasks():
                             })
                             os.remove(filepath)
                             print(f"? Removed image {filename} for task {task_id}")
+                            print(f"? Waiting 30 seconds before processing next task")
+                            time.sleep(30)
                         else:
                             print(f"? Failed to print image for task {task_id}: {result.stderr.strip()}")
 
